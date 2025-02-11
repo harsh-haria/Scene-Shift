@@ -8,15 +8,18 @@ import sys
 from datetime import timedelta
 from urllib.parse import urlparse
 import yt_dlp
+import webvtt
 
 # Define directory structure
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOADS_DIR = os.path.join(SCRIPT_DIR, 'downloaded_videos')
 SPLITS_DIR = os.path.join(SCRIPT_DIR, 'splits')
+SUBTITLES_DIR = os.path.join(SCRIPT_DIR, 'subtitles')
 
 def ensure_directories():
     os.makedirs(DOWNLOADS_DIR, exist_ok=True)
     os.makedirs(SPLITS_DIR, exist_ok=True)
+    os.makedirs(SUBTITLES_DIR, exist_ok=True)
 
 def is_youtube_url(url):
     try:
@@ -29,10 +32,22 @@ def download_youtube_video(url):
     ensure_directories()
     video_id = url.split('watch?v=')[-1] if 'watch?v=' in url else url.split('/')[-1]
     output_path = os.path.join(DOWNLOADS_DIR, f'{video_id}.mp4')
+    subtitle_path = os.path.join(SUBTITLES_DIR, f'{video_id}.en.vtt.en.vtt')
+    
+    if os.path.exists(output_path) and os.path.exists(subtitle_path):
+        print(f"Video and subtitles already downloaded: {output_path}")
+        return output_path, video_id
     
     ydl_opts = {
         'format': 'best',
         'outtmpl': output_path,
+        'writesubtitles': True,
+        'subtitleslangs': ['en'],
+        'subtitlesformat': 'vtt',
+        'outtmpl': {
+            'default': output_path,
+            'subtitle': subtitle_path
+        }
     }
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -47,6 +62,21 @@ def sanitize_filename(filename):
         filename = filename.replace(char, '_')
     return filename
 
+def load_subtitles(video_id):
+    subtitle_path = os.path.join(SUBTITLES_DIR, f'{video_id}.en.vtt.en.vtt')
+    print("subtitle path is: ",subtitle_path)
+    if not os.path.exists(subtitle_path):
+        print(f"Error: Subtitle file {subtitle_path} does not exist")
+        return []
+    
+    subtitles = []
+    for caption in webvtt.read(subtitle_path):
+        start = timedelta(hours=int(caption.start[:2]), minutes=int(caption.start[3:5]), seconds=float(caption.start[6:]))
+        end = timedelta(hours=int(caption.end[:2]), minutes=int(caption.end[3:5]), seconds=float(caption.end[6:]))
+        subtitles.append((start, end, caption.text))
+    
+    return subtitles
+
 def extract_frames(video_path):
     ensure_directories()
     
@@ -56,13 +86,19 @@ def extract_frames(video_path):
         print("Downloading YouTube video...")
         video_path, video_id = download_youtube_video(video_path)
         video_filename = f"youtube_{video_id}"
+        subtitles = load_subtitles(video_id)
     else:
         if not os.path.exists(video_path):
             print(f"Error: File {video_path} does not exist")
             return
         video_filename = os.path.splitext(os.path.basename(video_path))[0]
+        subtitles = []
 
     output_dir = os.path.join(SPLITS_DIR, video_filename)
+    # if os.path.exists(output_dir) and os.listdir(output_dir):
+    #     print(f"Splits already exist for video: {output_dir}")
+    #     return
+    
     os.makedirs(output_dir, exist_ok=True)
 
     video = cv2.VideoCapture(video_path)
@@ -92,15 +128,25 @@ def extract_frames(video_path):
                     print(f"Invalid frame data at frame {frame_number}")
                     continue
                 
-                # Calculate correct timestamp based on target FPS
-                timestamp = timedelta(seconds=(saved_frame_count/target_fps))
+                # Calculate correct timestamp based on video time
+                timestamp = timedelta(seconds=(frame_number / original_fps))
                 safe_timestamp = str(timestamp).replace(":", "_")
-                output_path = os.path.join(output_dir, f"frame_{saved_frame_count:06d}_{safe_timestamp}.jpg")
+                output_path = os.path.join(output_dir, f"frame_{safe_timestamp}.jpg")
                 
                 if cv2.imwrite(output_path, frame):
                     saved_frame_count += 1
                     if saved_frame_count % 10 == 0:
                         print(f"Saved {saved_frame_count} frames at {target_fps} FPS")
+                    
+                    # Associate frame with subtitle
+                    for start, end, text in subtitles:
+                        if start <= timestamp <= end:
+                            subtitle_output_dir = os.path.join(output_dir, 'subtitles')
+                            os.makedirs(subtitle_output_dir, exist_ok=True)
+                            subtitle_output_path = os.path.join(subtitle_output_dir, f"frame_{safe_timestamp}.txt")
+                            with open(subtitle_output_path, 'w') as subtitle_file:
+                                subtitle_file.write(text)
+                            break
                 else:
                     print(f"Failed to save frame {frame_number}")
                     
