@@ -32,9 +32,10 @@ def download_youtube_video(url):
     ensure_directories()
     video_id = url.split('watch?v=')[-1] if 'watch?v=' in url else url.split('/')[-1]
     output_path = os.path.join(DOWNLOADS_DIR, f'{video_id}.mp4')
-    subtitle_path = os.path.join(SUBTITLES_DIR, f'{video_id}.en.vtt.en.vtt')
+    subtitle_template = os.path.join(SUBTITLES_DIR, f'{video_id}')
     
-    if os.path.exists(output_path) and os.path.exists(subtitle_path):
+    expected_subtitle = subtitle_template + ".vtt"
+    if os.path.exists(output_path) and os.path.exists(expected_subtitle):
         print(f"Video and subtitles already downloaded: {output_path}")
         return output_path, video_id
     
@@ -46,7 +47,7 @@ def download_youtube_video(url):
         'subtitlesformat': 'vtt',
         'outtmpl': {
             'default': output_path,
-            'subtitle': subtitle_path
+            'subtitle': subtitle_template
         }
     }
     
@@ -63,8 +64,7 @@ def sanitize_filename(filename):
     return filename
 
 def load_subtitles(video_id):
-    subtitle_path = os.path.join(SUBTITLES_DIR, f'{video_id}.en.vtt.en.vtt')
-    print("subtitle path is: ",subtitle_path)
+    subtitle_path = os.path.join(SUBTITLES_DIR, f'{video_id}.en.vtt')
     if not os.path.exists(subtitle_path):
         print(f"Error: Subtitle file {subtitle_path} does not exist")
         return []
@@ -80,7 +80,7 @@ def load_subtitles(video_id):
 def extract_frames(video_path):
     ensure_directories()
     
-    target_fps = 10  # Set target FPS
+    target_fps = 8  # Set target FPS
     
     if is_youtube_url(video_path):
         print("Downloading YouTube video...")
