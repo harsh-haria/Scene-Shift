@@ -142,7 +142,10 @@ def extract_frames(video_path, annotation_prompt=None):
     #     return
     
     os.makedirs(output_dir, exist_ok=True)
-
+    
+    # Instead of (or in addition to) writing master file, create an annotations array.
+    annotations_array = []
+    
     video = cv2.VideoCapture(video_path)
     if not video.isOpened():
         print(f"Error: Could not open video file {video_path}")
@@ -196,6 +199,11 @@ def extract_frames(video_path, annotation_prompt=None):
                     annotation_output_path = os.path.join(annotation_output_dir, f"frame_{safe_timestamp}.txt")
                     with open(annotation_output_path, 'w') as ann_file:
                         ann_file.write(annotation)
+                    
+                    # Append frame annotation to our array
+                    annotations_array.append((f"frame_{safe_timestamp}.jpg", annotation))
+                    
+                    # (Optional) Also append to a master file if needed.
                 else:
                     print(f"Failed to save frame {frame_number}")
                     
@@ -206,6 +214,13 @@ def extract_frames(video_path, annotation_prompt=None):
 
     video.release()
     print(f"Complete! Saved {saved_frame_count} frames at {target_fps} FPS (processed {frame_number} frames)")
+    
+    # Import and call a processing function from prompts-video.py with our annotations array.
+    try:
+        from prompts_video import export_videos
+        export_videos(annotations_array)
+    except ImportError:
+        print("process_annotations function not found in prompts-video.py. Skipping further processing.")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or len(sys.argv) > 3:
