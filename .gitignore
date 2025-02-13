@@ -2,3 +2,6 @@
 /venv/
 /splits/
 /subtitles/
+
+# Secrets
+.env
