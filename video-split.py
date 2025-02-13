@@ -111,9 +111,15 @@ def annotate_frame(frame_path, prompt="Give a detailed description of what is ha
         **inputs,
         max_length=100,
         num_beams=8,        # Increased from 4 to 8 for better quality
-        min_length=20,
+        min_length=40,
         temperature=1.0,    # Added temperature to control randomness
+        repetition_penalty=1.3,      # discourages repeats
         early_stopping=True
+        # do_sample=True,              # sample instead of deterministic beam search
+        # top_k=50,                    # limit vocabulary to top 50 tokens
+        # top_p=0.95,                  # nucleus sampling?
+        # no_repeat_ngram_size=3,      # prevents 3-gram repetition
+        # length_penalty=1.0,
     )
     
     description = processor.decode(output[0], skip_special_tokens=True)
@@ -193,7 +199,7 @@ def extract_frames(video_path, annotation_prompt=None):
                                 subtitle_file.write(text)
                             break
                     # Generate annotation for the frame.
-                    annotation = annotate_frame(frame_path, annotation_prompt or "Give a detailed description of what is happening in this scene.")
+                    annotation = annotate_frame(frame_path, annotation_prompt or "Give a detailed description of what is happening in this scene. Describe the characters, background and the colours as well.")
                     annotation_output_dir = os.path.join(output_dir, 'annotations')
                     os.makedirs(annotation_output_dir, exist_ok=True)
                     annotation_output_path = os.path.join(annotation_output_dir, f"frame_{safe_timestamp}.txt")
@@ -217,8 +223,9 @@ def extract_frames(video_path, annotation_prompt=None):
     
     # Import and call a processing function from prompts-video.py with our annotations array.
     try:
-        from prompts_video import export_videos
-        export_videos(annotations_array)
+        # from prompts_video import export_videos
+        print(annotations_array)
+        # export_videos(annotations_array)
     except ImportError:
         print("process_annotations function not found in prompts-video.py. Skipping further processing.")
 
